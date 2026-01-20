@@ -16,6 +16,11 @@ const loading = document.getElementById('loading');
 const timerElement = document.getElementById('reset-timer');
 const tabs = document.querySelectorAll('.tab-btn');
 
+// Wishlist Elements
+const wishlistContainer = document.getElementById('wishlist-container');
+const wishlistGrid = document.getElementById('wishlist-grid');
+const wishlistEmpty = document.getElementById('wishlist-empty');
+
 // Filters
 const searchInput = document.getElementById('files-search');
 const typeFilter = document.getElementById('files-type');
@@ -30,6 +35,64 @@ let allCosmeticsCache = []; // Almacena TODOS los items descargados
 let filteredCosmetics = []; // Almacena los items tras aplicar filtros
 let currentPage = 1;
 const ITEMS_PER_PAGE = 50;
+
+// Wishlist Logic
+let wishlist = JSON.parse(localStorage.getItem('fortnite_wishlist')) || [];
+
+function toggleWishlist(item, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+
+    const index = wishlist.findIndex(w => w.id === item.id);
+    if (index > -1) {
+        wishlist.splice(index, 1);
+    } else {
+        wishlist.push(item);
+    }
+
+    localStorage.setItem('fortnite_wishlist', JSON.stringify(wishlist));
+
+    // Update UI if we are in wishlist view
+    if (wishlistContainer.style.display !== 'none') {
+        renderWishlist();
+    }
+
+    // Update button visual state if it exists in DOM
+    const btn = document.querySelector(`.wishlist-btn[data-id="${item.id}"]`);
+    if (btn) {
+        const isSaved = index === -1; // We just added it
+        updateHeartIcon(btn, isSaved);
+    }
+
+    // Refresh all hearts on screen
+    document.querySelectorAll(`.wishlist-btn[data-id="${item.id}"]`).forEach(b => updateHeartIcon(b, wishlist.some(w => w.id === item.id)));
+}
+
+function updateHeartIcon(btn, isSaved) {
+    if (isSaved) {
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#fcee0a" stroke="#fcee0a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
+    } else {
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
+    }
+}
+
+function renderWishlist() {
+    wishlistGrid.innerHTML = '';
+
+    if (wishlist.length === 0) {
+        wishlistEmpty.style.display = 'block';
+        return;
+    }
+
+    wishlistEmpty.style.display = 'none';
+
+    wishlist.forEach(item => {
+        const card = createItemCard(item);
+        wishlistGrid.appendChild(card);
+    });
+}
 
 // Manejo de tabs
 tabs.forEach(tab => {
@@ -46,6 +109,7 @@ tabs.forEach(tab => {
         newItemsContainer.style.display = 'none';
         allItemsContainer.style.display = 'none';
         statsContainer.style.display = 'none';
+        wishlistContainer.style.display = 'none';
 
         if (target === 'shop') {
             container.style.display = 'block';
@@ -61,9 +125,41 @@ tabs.forEach(tab => {
                  const input = document.getElementById('stats-username');
                  if(input) input.focus();
              }, 100);
+        } else if (target === 'wishlist') {
+            wishlistContainer.style.display = 'block';
+            renderWishlist();
         }
     });
 });
+
+// Skeleton Loader
+function renderSkeleton(targetContainer, count = 10) {
+    targetContainer.innerHTML = ''; // Clear container
+    const grid = document.createElement('div');
+    grid.className = 'grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4';
+
+    for (let i = 0; i < count; i++) {
+        const skeleton = document.createElement('div');
+        skeleton.className = 'aspect-[1/1.2] rounded-lg bg-white/5 animate-pulse flex flex-col border border-white/5';
+        skeleton.innerHTML = `
+            <div class="flex-1 bg-white/5 w-full"></div>
+            <div class="h-[80px] p-4 flex flex-col justify-center gap-2 border-t border-white/5 bg-[#151515]">
+                <div class="h-4 bg-white/10 w-3/4 rounded"></div>
+                <div class="h-3 bg-white/10 w-1/2 rounded"></div>
+            </div>
+        `;
+        grid.appendChild(skeleton);
+    }
+
+    if (targetContainer.id === 'shop-container' || targetContainer.id === 'new-items-container') {
+         // Create a wrapper for the grid so we don't mess up section titles later if we append
+         const wrapper = document.createElement('div');
+         wrapper.appendChild(grid);
+         targetContainer.appendChild(wrapper);
+    } else {
+        targetContainer.appendChild(grid);
+    }
+}
 
 // Event Listeners para filtros
 searchInput.addEventListener('input', applyFilters);
@@ -98,8 +194,9 @@ statsInput.addEventListener('keypress', (e) => {
 // Función principal
 async function fetchShop() {
     try {
-        loading.style.display = 'block';
-        loading.textContent = "Loading shop...";
+        loading.style.display = 'none'; // Hide text loader
+        renderSkeleton(container, 12); // Show skeleton
+
         const response = await fetch(API_URL);
         const json = await response.json();
         
@@ -107,35 +204,34 @@ async function fetchShop() {
         
         const data = json.data;
         
-        // Configurar la fecha de la tienda
-        setupTimer(data.date); // La API devuelve la fecha de la tienda actual
+        setupTimer(data.date);
 
-        // Procesar items
+        // Clear skeleton before rendering
+        container.innerHTML = '';
         renderShop(data.entries);
-        loading.style.display = 'none';
 
     } catch (error) {
         console.error(error);
-        loading.textContent = "Error loading shop. Try again later.";
+        container.innerHTML = `<h2 class="text-center text-red-500 text-2xl mt-10">Error loading shop. Try again later.</h2>`;
     }
 }
 
 async function fetchNewItems() {
     try {
-        loading.style.display = 'block';
-        loading.textContent = "Loading new cosmetics...";
+        loading.style.display = 'none';
+        renderSkeleton(newItemsContainer, 12);
+
         const response = await fetch(NEW_ITEMS_URL);
         const json = await response.json();
 
         if (json.status !== 200) throw new Error("Error fetching new items");
 
+        newItemsContainer.innerHTML = ''; // Clear skeleton
         renderNewItems(json.data.items);
-        loading.style.display = 'none';
 
     } catch (error) {
         console.error("Error new items:", error);
         newItemsContainer.innerHTML = "<h2 style='text-align:center'>Could not load new items.</h2>";
-        loading.style.display = 'none';
     }
 }
 
@@ -294,6 +390,7 @@ async function fetchAllItems() {
     try {
         loading.style.display = 'block';
         loading.textContent = "Downloading cosmetics database... (This may take a few seconds)";
+        allItemsGrid.innerHTML = ''; // Ensure empty
         
         const response = await fetch(ALL_ITEMS_URL);
         const json = await response.json();
@@ -457,10 +554,124 @@ function renderShop(entries) {
     });
 }
 
+// Modal Logic
+const modalOverlay = document.getElementById('item-modal');
+const closeModalBtn = document.getElementById('close-modal');
+
+closeModalBtn.addEventListener('click', closeModal);
+modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) closeModal();
+});
+
+function openModal(itemData) {
+    // Populate modal data
+    const imgContainer = document.getElementById('modal-image-container');
+    const titleEl = document.getElementById('modal-title');
+    const descEl = document.getElementById('modal-description');
+    const rarityEl = document.getElementById('modal-rarity');
+    const priceEl = document.getElementById('modal-price');
+    const setEl = document.getElementById('modal-set');
+    const wishlistBtn = document.getElementById('modal-wishlist-btn');
+
+    // Extract basic info (similar to card creation logic)
+    let name = "Unknown";
+    let imageUrl = "";
+    let description = "No description available.";
+    let rarity = "COMMON";
+    let setName = "";
+    let price = "N/A";
+
+    // Re-use logic to extract data from the complex API structure
+    // This is a simplified extraction for the modal
+    if (itemData.bundle) {
+        name = itemData.bundle.name;
+        imageUrl = itemData.bundle.image;
+        description = itemData.bundle.info || "";
+    } else if (itemData.brItems && itemData.brItems.length > 0) {
+        const i = itemData.brItems[0];
+        name = i.name;
+        imageUrl = i.images.featured || i.images.icon || i.images.smallIcon;
+        description = i.description;
+        if(i.rarity) rarity = i.rarity.value.toUpperCase();
+        if(i.set) setName = i.set.text;
+    } else if (itemData.tracks && itemData.tracks.length > 0) {
+         name = itemData.tracks[0].title;
+         imageUrl = itemData.tracks[0].albumArt;
+         description = itemData.tracks[0].artist;
+         rarity = "ICON SERIES";
+    } else if (itemData.cars && itemData.cars.length > 0) {
+        name = itemData.cars[0].name;
+        imageUrl = itemData.cars[0].images.large || itemData.cars[0].images.small;
+        description = itemData.cars[0].description;
+        if(itemData.cars[0].rarity) rarity = itemData.cars[0].rarity.value.toUpperCase();
+    } else if (itemData.instruments && itemData.instruments.length > 0) {
+        name = itemData.instruments[0].name;
+        imageUrl = itemData.instruments[0].images.large || itemData.instruments[0].images.small;
+        description = itemData.instruments[0].description;
+         if(itemData.instruments[0].rarity) rarity = itemData.instruments[0].rarity.value.toUpperCase();
+    }
+
+     if (itemData.newDisplayAsset && itemData.newDisplayAsset.renderImages && itemData.newDisplayAsset.renderImages.length > 0) {
+        imageUrl = itemData.newDisplayAsset.renderImages[0].image;
+    }
+
+    if (itemData.finalPrice) {
+        price = itemData.finalPrice;
+    }
+
+    // Apply data
+    titleEl.textContent = name;
+    descEl.textContent = description;
+    rarityEl.textContent = rarity;
+    setEl.textContent = setName ? `Part of the ${setName}` : '';
+
+    if (price !== "N/A") {
+        priceEl.innerHTML = `<img src="https://fortnite-api.com/images/vbuck.png" class="w-8" alt="V-Bucks"> <span>${price}</span>`;
+    } else {
+        priceEl.innerHTML = `<span class="text-gray-400">Not in shop</span>`;
+    }
+
+    imgContainer.style.backgroundImage = `url('${imageUrl}')`;
+
+    // Wishlist Button Logic in Modal
+    const isSaved = wishlist.some(w => w.id === itemData.id);
+    updateModalWishlistBtn(wishlistBtn, isSaved);
+
+    wishlistBtn.onclick = () => {
+        toggleWishlist(itemData);
+        const savedNow = wishlist.some(w => w.id === itemData.id);
+        updateModalWishlistBtn(wishlistBtn, savedNow);
+    };
+
+    modalOverlay.classList.add('open');
+}
+
+function updateModalWishlistBtn(btn, isSaved) {
+    if (isSaved) {
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#fcee0a" stroke="#fcee0a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg> <span>Saved</span>`;
+        btn.classList.add('text-accent');
+    } else {
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg> <span>Add to Wishlist</span>`;
+        btn.classList.remove('text-accent');
+    }
+}
+
+function closeModal() {
+    modalOverlay.classList.remove('open');
+}
+
 function createItemCard(entry) {
     const card = document.createElement('div');
     // Tailwind replacement for card
     card.className = 'relative aspect-[1/1.2] rounded-lg overflow-hidden cursor-pointer transition-transform duration-200 border border-white/10 flex flex-col hover:scale-105 hover:shadow-xl hover:border-accent hover:z-10 bg-card-bg group';
+
+    // Ensure entry has an ID (sometimes API doesn't provide a clean single ID for bundles, we make one up if needed for wishlist key)
+    if (!entry.id) {
+        if (entry.bundle) entry.id = entry.bundle.id;
+        else if (entry.brItems && entry.brItems.length > 0) entry.id = entry.brItems[0].id;
+        else if (entry.offerId) entry.id = entry.offerId;
+        else entry.id = Math.random().toString(36).substr(2, 9); // Fallback
+    }
 
     // -- Lógica para determinar el nombre y la imagen --
     // La API es compleja. Puede ser un Bundle, un item normal, una canción (tracks), un coche, etc.
@@ -553,14 +764,30 @@ function createItemCard(entry) {
          bannerHtml = `<div class="card-banner" style="background:#fcee0a; color:black;">NEW</div>`;
     }
 
+    // Wishlist Button State
+    const isSaved = wishlist.some(w => w.id === entry.id);
+    const heartSvg = isSaved
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#fcee0a" stroke="#fcee0a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
+
     card.innerHTML = `
         ${bannerHtml}
+        <button class="wishlist-btn absolute top-2 right-2 z-20 p-2 bg-black/50 rounded-full hover:bg-black/80 transition-colors" data-id="${entry.id}">
+            ${heartSvg}
+        </button>
         <div class="w-full flex-1 bg-cover bg-center relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-1/2 after:bg-gradient-to-t after:from-black/80 after:to-transparent" style="background-image: url('${imageUrl}');"></div>
         <div class="h-auto min-h-[80px] px-4 py-2 flex flex-col justify-center bg-[#151515] z-[2] border-t-2 border-white/10 relative">
             <div class="text-base font-bold uppercase whitespace-normal leading-tight mb-1 text-white shadow-black drop-shadow-md !pl-2">${name}</div>
             <div class="flex items-center mt-1 text-sm text-[#e6e6e6] !pl-2">${priceHtml}</div>
         </div>
     `;
+
+    // Click to Open Modal
+    card.addEventListener('click', () => openModal(entry));
+
+    // Wishlist Toggle
+    const heartBtn = card.querySelector('.wishlist-btn');
+    heartBtn.addEventListener('click', (e) => toggleWishlist(entry, e));
 
     return card;
 }
