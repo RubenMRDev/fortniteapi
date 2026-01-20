@@ -22,11 +22,22 @@
         <button class="tab-btn" data-target="new">NEW COSMETICS</button>
         <button class="tab-btn" data-target="all">ALL</button>
         <button class="tab-btn" data-target="stats">STATS</button>
+        <button class="tab-btn" data-target="wishlist">WISHLIST</button>
     </div>
 
     <div id="loading" class="text-center mt-12 text-3xl animate-pulse">Loading...</div>
 
     <main id="shop-container" class="content-section active px-4 md:px-10 max-w-[1800px] mx-auto mb-12">
+    </main>
+
+    <main id="wishlist-container" class="content-section px-4 md:px-10 max-w-[1800px] mx-auto mb-12" style="display: none;">
+        <h2 class="section-title">My Wishlist</h2>
+        <div id="wishlist-grid" class="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+            <!-- Wishlist items will go here -->
+        </div>
+        <div id="wishlist-empty" class="text-center py-10 text-gray-400 italic" style="display: none;">
+            Your wishlist is empty. Add items by clicking the heart icon!
+        </div>
     </main>
 
     <main id="new-items-container" class="content-section px-4 md:px-10 max-w-[1800px] mx-auto mb-12" style="display: none;">
@@ -66,6 +77,35 @@
             <button id="load-more-btn" class="tab-btn text-base py-2.5 px-5">Load more</button>
         </div>
     </main>
+
+    <div id="item-modal" class="modal-overlay">
+        <div class="modal-content">
+            <button id="close-modal" class="absolute top-4 right-4 z-50 text-white bg-black/50 hover:bg-red-500 rounded-full p-2 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <div id="modal-image-container" class="w-full md:w-1/2 min-h-[400px] bg-cover bg-center relative">
+                <!-- Image via CSS or IMG -->
+            </div>
+            <div class="w-full md:w-1/2 p-8 flex flex-col relative bg-[#151515]">
+                <div id="modal-rarity" class="uppercase font-bold tracking-widest text-sm mb-2 text-gray-400">Rarity</div>
+                <h2 id="modal-title" class="font-luckiest text-4xl uppercase mb-4 text-white drop-shadow-md">Item Name</h2>
+                <div id="modal-description" class="text-lg text-gray-300 italic mb-6 font-sans">Description goes here...</div>
+
+                <div class="mt-auto">
+                    <div id="modal-set" class="mb-4 text-gray-400 text-sm uppercase tracking-wider font-bold">Part of the Set</div>
+                    <div class="flex items-center gap-4 border-t border-white/10 pt-4">
+                        <div id="modal-price" class="text-2xl font-bold flex items-center gap-2">
+                            <img src="https://fortnite-api.com/images/vbuck.png" class="w-8" alt="V-Bucks">
+                            <span>1200</span>
+                        </div>
+                        <button id="modal-wishlist-btn" class="ml-auto bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded uppercase font-bold tracking-wider transition-colors flex items-center gap-2">
+                            <span>Add to Wishlist</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="/src/main.js"></script>
 </body>
